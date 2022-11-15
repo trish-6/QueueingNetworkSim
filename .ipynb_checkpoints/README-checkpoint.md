@@ -27,6 +27,7 @@ simulated averages for # pkts in each node.
 - Calculate and plot theoretical values based on Kleinrock's Independence Approx.
 - Try larger simulations
 
-## Usage
+## Requirements and Usage
+- Matplotlib required
 - Tested on Python 3.10.0
 - Command line `python proj.py`
