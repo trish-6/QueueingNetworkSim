@@ -6,26 +6,27 @@
 
 ## Overview
 Includes a single python file simulating a queuing network with no feedback. Packets enter the system
-according to a Poisson Process with rate lambda. They are routed through node 1, then through one of
+according to a Poisson process with rate lambda. They are routed through node 1, then through one of
 the N nodes at the next level, then through node 3, after which they exit the network. Each node is 
-modelled as a queue with exponential service time.
+modeled as a queue with exponential service time.
 
 ## Basic Implementation
 Each node is an instance of a class called 'Node', which keeps track of information like the node's ID
 (e.g. 1, 20, 21, 3), a list of packets in the node's queue, and arrival/departure times of packets.
 The program uses one thread for each node, which run in parallel. Each thread handles the arrivals,
-services, and departures of packets in that node.
+services, and departures of packets in that node. Once a certain number of packets pass through the
+system (e.g. 1000), the simulation ends and the program plots average values for number of packets in
+each node and delay through each node.
 
 ## Current Phase
-Implemented the entire queueing system and calculation of average number of packets and average delay
-through each node. The main function runs one simulations with lambda = 1 pkt/s, and plots the simulated
-averages for # pkts and delay in each node. Thorough logging of packet movement by printing to console.
-Manually checked for correct output.
+Implemented the entire queueing system, and calculation/plotting of average number of packets and
+average delay through each node. Manually checked for correct output with a slow arrival rate and a
+low number of packets. With higher arrival rates and number of packets, plots seem reasonable from
+comparing theoretical and simulated values.
 
 ## Next Steps
-- Try more/larger simulations
-- Calculate and plot theoretical values based on Kleinrock's Independence Approx.
-- Update the look of the graphs: line vs. scatter, fixed axis ranges, etc.
+- Simulate a higher number of packets (50,000). Why does this cause weird behavior?
+- Add more plots for the difference between theoretical and calculated averages
 
 ## Requirements and Usage
 - Matplotlib required

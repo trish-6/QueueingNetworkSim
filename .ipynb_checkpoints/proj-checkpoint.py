@@ -1,55 +1,44 @@
-## Steps:
-# - Sender sends packets at lambda pkts/s
-# - pkt goes from sender into node1
-# - pkt goes through node1 and onto link1 with capacity C
-# - pkt goes to one of n nodes with probability 1/n
-# - pkt goes through node
-# - pkt goes onto a link with capacity C/n into node3
-# - pkt goes through node3
-# - pkt goes onto link3 with capacity C
-# - pkt exits system (arrives at destination node)
+# Author: Tristan Langley
+# Date created: 11/7/22
+# Summary: Simulate a simple queueing network
+#          - Packets arrive according to a Poisson process
+#          - Packets go through node 1 -> one of N level 2 nodes -> node 3 -> exit system
+#          - Link capacity C after nodes 1 and 3, link capacity C/N after nodes (2,n)
+#          - Packet lengths are exponentially distributed
+#          - Propagation delays and processing delays are negligible
+# Usage: 'python proj.py', must have matplotlib installed
 
 
-## Notes:
-# - Pkts from sender follow a Poisson process with rate lambda
-# - Pkt lengths are exponentially distributed (i.e. service times are exponentially distributed)
-# - Propagation & processing delays are negligible (=> only consider queueing & transmission delay)
-
-
-# Instructions:
-# - Simulate for n = 1,2,3,4
-# - lambda should range from {50, 100, 150, 200, ... 1100, 1150, 1200}
-# - C = 10 Mbits/s = 1,250,000 bytes/s
-# - Average pkt length is 1000 bytes
-# - Keep track of 1. avg pkt delay through each node (queue)
-#                 2. avg number of pkts in each node (queue)
-# - Plot these avgs compared against theoretical avgs using Kleinrock's approx.
-
-
-# -------------------------------------- Imports ---------------------------------------
+# --------------------------------------- Imports ----------------------------------------
 import random
 import threading
 from collections import deque
 import matplotlib.pyplot as plt
 from typing import Type, Union, List, Tuple
-# --------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------
 
 
-# ---------------------------------- Global variables ----------------------------------
+
+# ----------------------------------- Global variables -----------------------------------
 # EDIT THESE VALUES PER SIMULATION:
 # How many level 2 nodes do you want? 1, 2, 3, or 4?
-N = 2
-# How many packets should pass through the system until I stop? for now, 5
-END_PKTS = 5
+N = 3
+# How many packets should pass through the system until I stop? for now, 1000
+END_PKTS = 1000
+# Arrival rates (lambda values) to simulate
+LAMBDAS = range(50, 1250, 50)
 
+# Average packet length = 1000 bytes/pkt
+PKT_LEN = 1000
 # Link capacity of link1 and link3 is C = 10 Mbits/s = 1,250,000 bytes/s
 C = 1250000
 # Link capacity of level 2 links is C/N
 CN = 1250000 / N
-# --------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------
 
 
-# -------------------------------------- Classes ---------------------------------------
+
+# --------------------------------------- Classes ----------------------------------------
 # A single node (queue)
 class Node:
     def __init__(self, id: int) -> None:
@@ -71,8 +60,8 @@ class Node:
     def enqueue(self, pkt: List[float]) -> None:
         self.queue.append(pkt)
         self.arrivals.append(pkt[1])
-        if self.id == 1:
-            print('ENTERED SYSTEM: PKT %.0f AT TIME %.3f' %(pkt[0], pkt[1]))
+        #if self.id == 1:
+        #    print('ENTERED SYSTEM: PKT %.0f AT TIME %.3f' %(pkt[0], pkt[1]))
         
     # Send the pkt at the front of my queue to the next node provided.
     def send(self, next_node: 'Node') -> None:
@@ -80,7 +69,7 @@ class Node:
             # Remove the pkt to send from this node's queue
             removed_pkt = self.queue.popleft()
             # FOR TESTING ONLY
-            my_arr_time = removed_pkt[1]
+            #my_arr_time = removed_pkt[1]
             # Calculate: departure time = max(my arr time, last dep time) + service time
             # service time = transmission delay = pkt length / link capacity
             if self.id == 1 or self.id == 3:
@@ -96,9 +85,9 @@ class Node:
             self.prev_pkt = removed_pkt
             # Increment total packets that have passed through this node
             self.total_pkts += 1
-            print('%.0f %d->%d DELAY %.7f/%.7f AT TIME %.3f' 
-                  %(removed_pkt[0], self.id, next_node.id, self.departures[-1] - self.arrivals[len(self.departures)-1],
-                    dep_time - my_arr_time, removed_pkt[1]))
+            #print('%.0f %d->%d DELAY %.7f/%.7f AT TIME %.3f' 
+            #      %(removed_pkt[0], self.id, next_node.id, self.departures[-1] - self.arrivals[len(self.departures)-1],
+            #        dep_time - my_arr_time, removed_pkt[1]))
     
     # Remove the pkt at the front of my queue; it exits the system and is gone for good
     # Requirement: only call this on node3 with link capacity C
@@ -107,7 +96,7 @@ class Node:
             # Remove a pkt from this node's queue
             removed_pkt = self.queue.popleft()
             # FOR TESTING ONLY
-            my_arr_time = removed_pkt[1]
+            #my_arr_time = removed_pkt[1]
             # Calculate: departure time = max(my arr time, last dep time) + service time
             # service time = transmission delay = pkt length / link capacity
             dep_time = max(removed_pkt[1], self.prev_pkt[1]) + removed_pkt[0] / C
@@ -118,13 +107,14 @@ class Node:
             self.prev_pkt = removed_pkt
             # Increment total packets that have passed through this node
             self.total_pkts += 1
-            print('EXIT %.0f DELAY %.7f/%.7f AT TIME %.3f'
-                  %(removed_pkt[0], self.departures[-1] - self.arrivals[len(self.departures)-1],
-                    dep_time - my_arr_time, removed_pkt[1]))
-# --------------------------------------------------------------------------------------
+            #print('EXIT %.0f DELAY %.7f/%.7f AT TIME %.3f'
+            #      %(removed_pkt[0], self.departures[-1] - self.arrivals[len(self.departures)-1],
+            #        dep_time - my_arr_time, removed_pkt[1]))
+# ----------------------------------------------------------------------------------------
 
 
-# ------------------------------------- Functions --------------------------------------
+
+# -------------------------------------- Functions ---------------------------------------
 # Pkt generator function: generates pkts according to a poisson process with 
 # rate l and sends to node1. Runs for the number of minutes specified
 def gen_pkts(node1: Node, node3: Node, l: int) -> None:
@@ -135,8 +125,8 @@ def gen_pkts(node1: Node, node3: Node, l: int) -> None:
         # Generate the next pkt (length is exponential(1/1000))
         # pkt is a list of 3 items: [pkt length, time I was sent, index]
         cur_pkt = []
-        cur_pkt.append(random.expovariate(0.001))  # pkt length
-        cur_pkt.append(cur_time)                   # time of generation/arrival at node1
+        cur_pkt.append(random.expovariate(1/PKT_LEN))  # pkt length
+        cur_pkt.append(cur_time)                       # time of generation/arrival at node1
         # Put the pkt into node1's queue
         node1.enqueue(cur_pkt)
 
@@ -168,10 +158,11 @@ def node3_func(node3: Node) -> None:
         if len(node3.queue) > 0:
             # Remove pkt from my queue
             node3.remove()
-# --------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------
 
 
-# --------------- Functions for a single simulation (one lambda value) -----------------
+
+# ---------------- Functions for a single simulation (one lambda value) ------------------
 # Runs the simulation with the provided pkt arrival rate lambda (l)
 # Returns two 3-tuples:
 #     - The avg number of pkts in nodes 1, 20, and 3
@@ -227,22 +218,22 @@ def calc_avgs(node1: Node, node2: Node, node3: Node) -> Tuple[Tuple[float, float
     sum_delays_2 = 0
     sum_delays_3 = 0
     for i in range(len(node1.departures)):
-        print('Node1 delay: %.7f' %(node1.departures[i] - node1.arrivals[i]))
+        #print('Node1 delay: %.7f' %(node1.departures[i] - node1.arrivals[i]))
         sum_delays_1 += node1.departures[i] - node1.arrivals[i]
     for i in range(len(node2.departures)):
-        print('Node2 delay: %.7f' %(node2.departures[i] - node2.arrivals[i]))
+        #print('Node2 delay: %.7f' %(node2.departures[i] - node2.arrivals[i]))
         sum_delays_2 += node2.departures[i] - node2.arrivals[i]
     for i in range(len(node3.departures)):
-        print('Node3 delay: %.7f' %(node3.departures[i] - node3.arrivals[i]))
+        #print('Node3 delay: %.7f' %(node3.departures[i] - node3.arrivals[i]))
         sum_delays_3 += node3.departures[i] - node3.arrivals[i]
     
-    print('Node1 total pkts: %d' %node1.total_pkts)
-    print('Node2 total pkts: %d' %node2.total_pkts)
-    print('Node3 total pkts: %d' %node3.total_pkts)
+    #print('Node1 total pkts: %d' %node1.total_pkts)
+    #print('Node2 total pkts: %d' %node2.total_pkts)
+    #print('Node3 total pkts: %d' %node3.total_pkts)
     
-    print('Node1 total time: %.3f' %(node1.departures[-1]))
-    print('Node2 total time: %.3f' %(node2.departures[-1]))
-    print('Node3 total time: %.3f' %(node3.departures[-1]))
+    #print('Node1 total time: %.3f' %(node1.departures[-1]))
+    #print('Node2 total time: %.3f' %(node2.departures[-1]))
+    #print('Node3 total time: %.3f' %(node3.departures[-1]))
     
     # Calculate the average number of packets in each node
     avg_pkts_1 = sum_delays_1 / (node1.departures[-1])
@@ -256,11 +247,95 @@ def calc_avgs(node1: Node, node2: Node, node3: Node) -> Tuple[Tuple[float, float
     
     # Return the avg # of pkts in each node and the avg delay in each node, as 3-tuples
     return (avg_pkts_1, avg_pkts_2, avg_pkts_3), (avg_delay_1, avg_delay_2, avg_delay_3)
+# ----------------------------------------------------------------------------------------
+
+
+
+# --------------------- Functions for calculating/plotting averages ----------------------
+# Top-level function to calculate theoretical avgs and plot them with simulated avgs
+def calc_plt_avgs(avg_pkts: List[float], avg_delays: List[float]) -> None:
+    # Calculate theoretical averages by assuming each node is an M/M/1 queue
+    # E(n) = expected # pkts in node = rho/(1-rho)
+    mu13 = C / PKT_LEN
+    mu2 = CN / PKT_LEN
+    rho13 = [l / mu13 for l in LAMBDAS]
+    rho2 = [(l/N) / mu2 for l in LAMBDAS]
+    exp_pkts_13 = [r / (1 - r) for r in rho13]
+    exp_pkts_2 = [r / (1 - r) for r in rho2]
+    # Expected time spent in node = E(n) / lambda
+    exp_time_13 = [n / l for n,l in zip(exp_pkts_13, LAMBDAS)]
+    exp_time_2 = [n / (l/N) for n,l in zip(exp_pkts_2, LAMBDAS)]
     
-# --------------------------------------------------------------------------------------
+    # Restructure the simulated data so it is easier to plot
+    # Lists of avg # pkts in nodes, in order of lambda value
+    node1_pkts = [item[0] for item in avg_pkts]
+    node2_pkts = [item[1] for item in avg_pkts]
+    node3_pkts = [item[2] for item in avg_pkts]
+    # Lists of avg delays in nodes, in order of lambda value
+    node1_delays = [item[0] for item in avg_delays]
+    node2_delays = [item[1] for item in avg_delays]
+    node3_delays = [item[2] for item in avg_delays]
+    
+    # Plot all these lists vs. lambda
+    create_plots(node1_pkts, node2_pkts, node3_pkts, node1_delays, node2_delays,
+                 node3_delays, exp_pkts_13, exp_pkts_2, exp_time_13, exp_time_2)
+    
+
+# Plot final averages, simulated and theoretical
+def create_plots(p1: List[float], p2: List[float], p3: List[float], d1: List[float],
+                 d2: List[float], d3: List[float], en13: List[float], en2: List[float],
+                 et13: List[float], et2: List[float]) -> None:
+    fig, axs = plt.subplots(3, 2)
+    # Node 1 avg # pkts
+    axs[0, 0].plot(LAMBDAS, p1)
+    axs[0, 0].plot(LAMBDAS, en13)
+    axs[0, 0].set_title('Node 1')
+    axs[0, 0].set_xlabel('Lambda (pkts/s)')
+    axs[0, 0].set_ylabel('Avg # of pkts')
+    axs[0, 0].legend(labels=['Simulated','Theoretical'], loc='upper left')
+    # Node 2 avg # pkts
+    axs[1, 0].plot(LAMBDAS, p2)
+    axs[1, 0].plot(LAMBDAS, en2)
+    axs[1, 0].set_title('Node (2,n)')
+    axs[1, 0].set_xlabel('Lambda (pkts/s)')
+    axs[1, 0].set_ylabel('Avg # of pkts')
+    axs[1, 0].legend(labels=['Simulated','Theoretical'], loc='upper left')
+    # Node 3 avg # pkts
+    axs[2, 0].plot(LAMBDAS, p3)
+    axs[2, 0].plot(LAMBDAS, en13)
+    axs[2, 0].set_title('Node 3')
+    axs[2, 0].set_xlabel('Lambda (pkts/s)')
+    axs[2, 0].set_ylabel('Avg # of pkts')
+    axs[2, 0].legend(labels=['Simulated','Theoretical'], loc='upper left')
+    # Node 1 avg delay
+    axs[0, 1].plot(LAMBDAS, d1)
+    axs[0, 1].plot(LAMBDAS, et13)
+    axs[0, 1].set_title('Node 1')
+    axs[0, 1].set_xlabel('Lambda (pkts/s)')
+    axs[0, 1].set_ylabel('Avg delay (s)')
+    axs[0, 1].legend(labels=['Simulated','Theoretical'], loc='upper left')
+    # Node 2 avg delay
+    axs[1, 1].plot(LAMBDAS, d2)
+    axs[1, 1].plot(LAMBDAS, et2)
+    axs[1, 1].set_title('Node (2,n)')
+    axs[1, 1].set_xlabel('Lambda (pkts/s)')
+    axs[1, 1].set_ylabel('Avg delay (s)')
+    axs[1, 1].legend(labels=['Simulated','Theoretical'], loc='upper left')
+    # Node 3 avg delay
+    axs[2, 1].plot(LAMBDAS, d3)
+    axs[2, 1].plot(LAMBDAS, et13)
+    axs[2, 1].set_title('Node 3')
+    axs[2, 1].set_xlabel('Lambda (pkts/s)')
+    axs[2, 1].set_ylabel('Avg delay (s)')
+    axs[2, 1].legend(labels=['Simulated','Theoretical'], loc='upper left')
+    
+    plt.tight_layout()
+    plt.show()
+# ----------------------------------------------------------------------------------------
 
 
-# ----------------------------------- Main function ------------------------------------
+
+# ------------------------------------ Main function -------------------------------------
 def main():
     # Lists for average # pkts in nodes 1, 20, and 3, and avg delay in nodes 1, 20, and 3
     # Structure: lists of 3-tuples
@@ -270,8 +345,7 @@ def main():
     avg_delays_list = []
     
     # Run simulation for each of lambda (arrival rate) = 50, 100, 150, ..., 1150, 1200
-    lambdas = range(1, 2, 1)
-    for l in lambdas:
+    for l in LAMBDAS:
         print('-------------------------- SIMULATION', l, '--------------------------')
         # Run a simulation with this lambda (pkt arrival rate)
         pkts, delays = run_one_sim(l)
@@ -279,52 +353,10 @@ def main():
         avg_pkts_list.append(pkts)
         avg_delays_list.append(delays)
     
-    # Restructure the data so it is easier to plot
-    # Lists of avg # pkts in nodes, in order of lambda value
-    node1_pkts = [item[0] for item in avg_pkts_list]
-    node2_pkts = [item[1] for item in avg_pkts_list]
-    node3_pkts = [item[2] for item in avg_pkts_list]
-    # Lists of avg delays in nodes, in order of lambda value
-    node1_delays = [item[0] for item in avg_delays_list]
-    node2_delays = [item[1] for item in avg_delays_list]
-    node3_delays = [item[2] for item in avg_delays_list]
-    
-    # Plot final statistics
-    fig, axs = plt.subplots(3, 2)
-    # Node 1 avg # pkts
-    axs[0, 0].scatter(lambdas, node1_pkts)
-    axs[0, 0].set_title('Node 1')
-    axs[0, 0].set_xlabel('Lambda (pkts/s)')
-    axs[0, 0].set_ylabel('Avg # of pkts')
-    # Node 2 avg # pkts
-    axs[1, 0].scatter(lambdas, node2_pkts)
-    axs[1, 0].set_title('Node (2,n)')
-    axs[1, 0].set_xlabel('Lambda (pkts/s)')
-    axs[1, 0].set_ylabel('Avg # of pkts')
-    # Node 3 avg # pkts
-    axs[2, 0].scatter(lambdas, node3_pkts)
-    axs[2, 0].set_title('Node 3')
-    axs[2, 0].set_xlabel('Lambda (pkts/s)')
-    axs[2, 0].set_ylabel('Avg # of pkts')
-    # Node 1 avg delay
-    axs[0, 1].scatter(lambdas, node1_delays)
-    axs[0, 1].set_title('Node 1')
-    axs[0, 1].set_xlabel('Lambda (pkts/s)')
-    axs[0, 1].set_ylabel('Avg delay (s)')
-    # Node 2 avg delay
-    axs[1, 1].scatter(lambdas, node2_delays)
-    axs[1, 1].set_title('Node (2,n)')
-    axs[1, 1].set_xlabel('Lambda (pkts/s)')
-    axs[1, 1].set_ylabel('Avg delay (s)')
-    # Node 3 avg delay
-    axs[2, 1].scatter(lambdas, node3_delays)
-    axs[2, 1].set_title('Node 3')
-    axs[2, 1].set_xlabel('Lambda (pkts/s)')
-    axs[2, 1].set_ylabel('Avg delay (s)')
-    
-    plt.tight_layout()
-    plt.show()
-# --------------------------------------------------------------------------------------
+    # Plot the simulated and theoretical averages for each lambda
+    calc_plt_avgs(avg_pkts_list, avg_delays_list)
+
+# ----------------------------------------------------------------------------------------
 
 if __name__ == '__main__':
     main()
