@@ -12,20 +12,20 @@ modelled as a queue with exponential service time.
 
 ## Basic Implementation
 Each node is an instance of a class called 'Node', which keeps track of information like the node's ID
-(e.g. 1, 20, 21, 3), a list of packets in the node's queue, and the total number of packets that have
-been in the node. The program runs by threads for each node, which run in parallel. Each thread
-handles the arrivals, services, and departures of packets in that node.
+(e.g. 1, 20, 21, 3), a list of packets in the node's queue, and arrival/departure times of packets.
+The program uses one thread for each node, which run in parallel. Each thread handles the arrivals,
+services, and departures of packets in that node.
 
-## Current phase
-Implemented the entire queueing system, aside from keeping track of the packet delay through each
-node. Main function runs a few simulations with different lambdas (arrival rates), and plots the
-simulated averages for # pkts in each node.
+## Current Phase
+Implemented the entire queueing system and calculation of average number of packets and average delay
+through each node. The main function runs one simulations with lambda = 1 pkt/s, and plots the simulated
+averages for # pkts and delay in each node. Thorough logging of packet movement by printing to console.
+Manually checked for correct output.
 
 ## Next Steps
-- Keep track of packet delay in each node
-- Fix the plots so labels aren't overlapping
+- Try more/larger simulations
 - Calculate and plot theoretical values based on Kleinrock's Independence Approx.
-- Try larger simulations
+- Update the look of the graphs: line vs. scatter, fixed axis ranges, etc.
 
 ## Requirements and Usage
 - Matplotlib required
