@@ -22,12 +22,12 @@ from typing import Type, Union, List, Tuple
 # ----------------------------------- Global variables -----------------------------------
 # EDIT THESE VALUES PER SIMULATION:
 # How many level 2 nodes do you want? 1, 2, 3, or 4?
-N = 3
-# How many packets should pass through the system until I stop? for now, 1000
-END_PKTS = 1000
+N = 4
+# How many packets should pass through the system until stopping? Final sim is 50,000
+END_PKTS = 50000
+
 # Arrival rates (lambda values) to simulate
 LAMBDAS = range(50, 1250, 50)
-
 # Average packet length = 1000 bytes/pkt
 PKT_LEN = 1000
 # Link capacity of link1 and link3 is C = 10 Mbits/s = 1,250,000 bytes/s
@@ -60,17 +60,20 @@ class Node:
     def enqueue(self, pkt: List[float]) -> None:
         self.queue.append(pkt)
         self.arrivals.append(pkt[1])
-        #if self.id == 1:
-        #    print('ENTERED SYSTEM: PKT %.0f AT TIME %.3f' %(pkt[0], pkt[1]))
+
+    # 'Peek' at the departure time of the pkt at the front of the queue
+    def next_dep(self) -> Union[List[float], None]:
+        if len(self.queue) > 0:
+            return max(self.queue[0][1], self.prev_pkt[1]) + self.queue[0][0] / CN
+        else:
+            return None
         
     # Send the pkt at the front of my queue to the next node provided.
     def send(self, next_node: 'Node') -> None:
         if len(self.queue) > 0:
             # Remove the pkt to send from this node's queue
             removed_pkt = self.queue.popleft()
-            # FOR TESTING ONLY
-            #my_arr_time = removed_pkt[1]
-            # Calculate: departure time = max(my arr time, last dep time) + service time
+            # Calculate: my departure time = max(my arr time, last dep time) + service time
             # service time = transmission delay = pkt length / link capacity
             if self.id == 1 or self.id == 3:
                 dep_time = max(removed_pkt[1], self.prev_pkt[1]) + removed_pkt[0] / C
@@ -79,15 +82,12 @@ class Node:
             self.departures.append(dep_time)
             # Update the pkt's current time to this departure time
             removed_pkt[1] = dep_time
-            # Put the pkt into the next node's queue
-            next_node.enqueue(removed_pkt)
             # Update this node's last/previously departed pkt
-            self.prev_pkt = removed_pkt
+            self.prev_pkt = removed_pkt[:]
             # Increment total packets that have passed through this node
             self.total_pkts += 1
-            #print('%.0f %d->%d DELAY %.7f/%.7f AT TIME %.3f' 
-            #      %(removed_pkt[0], self.id, next_node.id, self.departures[-1] - self.arrivals[len(self.departures)-1],
-            #        dep_time - my_arr_time, removed_pkt[1]))
+            # Put the pkt into the next node's queue
+            next_node.enqueue(removed_pkt)
     
     # Remove the pkt at the front of my queue; it exits the system and is gone for good
     # Requirement: only call this on node3 with link capacity C
@@ -95,21 +95,16 @@ class Node:
         if len(self.queue) > 0:
             # Remove a pkt from this node's queue
             removed_pkt = self.queue.popleft()
-            # FOR TESTING ONLY
-            #my_arr_time = removed_pkt[1]
-            # Calculate: departure time = max(my arr time, last dep time) + service time
+            # Calculate: my departure time = max(my arr time, last dep time) + service time
             # service time = transmission delay = pkt length / link capacity
             dep_time = max(removed_pkt[1], self.prev_pkt[1]) + removed_pkt[0] / C
             self.departures.append(dep_time)
             # Update the pkt's current time to this departure time
             removed_pkt[1] = dep_time
             # Update this node's last/previously departed pkt
-            self.prev_pkt = removed_pkt
+            self.prev_pkt = removed_pkt[:]
             # Increment total packets that have passed through this node
             self.total_pkts += 1
-            #print('EXIT %.0f DELAY %.7f/%.7f AT TIME %.3f'
-            #      %(removed_pkt[0], self.departures[-1] - self.arrivals[len(self.departures)-1],
-            #        dep_time - my_arr_time, removed_pkt[1]))
 # ----------------------------------------------------------------------------------------
 
 
@@ -123,7 +118,7 @@ def gen_pkts(node1: Node, node3: Node, l: int) -> None:
         # Distribution of time between successive pkts is exponential(l)
         cur_time += random.expovariate(l)
         # Generate the next pkt (length is exponential(1/1000))
-        # pkt is a list of 3 items: [pkt length, time I was sent, index]
+        # pkt is a list of 2 items: [pkt length, current arrival time]
         cur_pkt = []
         cur_pkt.append(random.expovariate(1/PKT_LEN))  # pkt length
         cur_pkt.append(cur_time)                       # time of generation/arrival at node1
@@ -140,16 +135,19 @@ def node1_func(node1: Node, node2_list: List[Node], node3: Node) -> None:
             node2_idx = random.randint(0, N-1)
             # Send the packet to that node
             node1.send(node2_list[node2_idx])
-        
 
-# The node2 function sends pkts to node3
-def node2_func(node2: Node, node3: Node) -> None:
+# The level2 function controls all N level 2 nodes
+# Send the packet with the soonest departure time to node3
+def level2_func(node2_list: List[Node], node3: Node) -> None:
     while node3.total_pkts <= END_PKTS:
-        # Check if there is a pkt in my queue
-        if len(node2.queue) > 0:
-            # Send pkt to node3
-            node2.send(node3)
-        
+        # Determine which level 2 node has the packet with the soonest departure time
+        dep_times_None = [node.next_dep() for node in node2_list]
+        dep_times = [x for x in dep_times_None if x != None]
+        if len(dep_times) > 0:
+            min_dep_node_idx = dep_times_None.index(min(dep_times))
+            # Send pkt from that level 2 node to node3
+            node2_list[min_dep_node_idx].send(node3)
+    
 
 # The node3 function removes pkts from node3; they are not sent anywhere, they exit the system
 def node3_func(node3: Node) -> None:
@@ -181,18 +179,15 @@ def run_one_sim(l: int) -> Tuple[Tuple[float, float, float], Tuple[float, float,
                                       args=(node1, node3, l))
     pkt_gen_thread.start()
     
-    # Create threads for each of the nodes
-    # Each thread handles sending the pkt at the front of the queue to the next node
-    # node2 thread
+    # Create threads to control service and routing at each of the nodes
+    # node1 thread
     node1_thread = threading.Thread(target=node1_func, name='Node1',
                                     args=(node1, node2_list, node3))
     node1_thread.start()
-    # threads for level 2 nodes
-    node2_threads = []
-    for i in range(N):
-        node2_threads.append(threading.Thread(target=node2_func, name='Node2'+str(i),
-                             args=(node2_list[i], node3)))
-        node2_threads[i].start()
+    # thread for level 2 nodes
+    level2_thread = threading.Thread(target=level2_func, name='Nodes2x',
+                                    args=(node2_list, node3))
+    level2_thread.start()
     # node3 thread
     node3_thread = threading.Thread(target=node3_func, name='Node3', args=(node3,))
     node3_thread.start()
@@ -200,8 +195,7 @@ def run_one_sim(l: int) -> Tuple[Tuple[float, float, float], Tuple[float, float,
     # Wait for all threads to stop
     pkt_gen_thread.join()
     node1_thread.join()
-    for i in range(N):
-        node2_threads[i].join()
+    level2_thread.join()
     node3_thread.join()
     
     # Return the avg # of pkts in each node and the avg delay in each node, as 3-tuples
@@ -218,22 +212,11 @@ def calc_avgs(node1: Node, node2: Node, node3: Node) -> Tuple[Tuple[float, float
     sum_delays_2 = 0
     sum_delays_3 = 0
     for i in range(len(node1.departures)):
-        #print('Node1 delay: %.7f' %(node1.departures[i] - node1.arrivals[i]))
         sum_delays_1 += node1.departures[i] - node1.arrivals[i]
     for i in range(len(node2.departures)):
-        #print('Node2 delay: %.7f' %(node2.departures[i] - node2.arrivals[i]))
         sum_delays_2 += node2.departures[i] - node2.arrivals[i]
     for i in range(len(node3.departures)):
-        #print('Node3 delay: %.7f' %(node3.departures[i] - node3.arrivals[i]))
         sum_delays_3 += node3.departures[i] - node3.arrivals[i]
-    
-    #print('Node1 total pkts: %d' %node1.total_pkts)
-    #print('Node2 total pkts: %d' %node2.total_pkts)
-    #print('Node3 total pkts: %d' %node3.total_pkts)
-    
-    #print('Node1 total time: %.3f' %(node1.departures[-1]))
-    #print('Node2 total time: %.3f' %(node2.departures[-1]))
-    #print('Node3 total time: %.3f' %(node3.departures[-1]))
     
     # Calculate the average number of packets in each node
     avg_pkts_1 = sum_delays_1 / (node1.departures[-1])
